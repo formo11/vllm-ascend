@@ -77,3 +77,19 @@ def test_qwen3_dense_w8a16():
         name_0="vllm_target_outputs",
         name_1="vllm_w8a16_outputs",
     )
+
+
+def test_quant_awq():
+    max_tokens = 5
+    example_prompts = [
+        "vLLM is a high-throughput and memory-efficient inference and serving engine for LLMs."
+    ]
+
+    # AWQ should be auto-detected from model config.
+    with VllmRunner(
+            snapshot_download("Qwen/Qwen2.5-0.5B-Instruct-AWQ"),
+            max_model_len=8192,
+            enforce_eager=False,
+            gpu_memory_utilization=0.7,
+    ) as vllm_model:
+        vllm_model.generate_greedy(example_prompts, max_tokens)
