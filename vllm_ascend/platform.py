@@ -38,6 +38,8 @@ from vllm_ascend.utils import (
     update_cudagraph_capture_sizes, update_default_aclgraph_sizes,
     check_kv_extra_config)
 
+# yapf: enable
+
 if TYPE_CHECKING:
     from vllm.config import ModelConfig, VllmConfig
     from vllm.utils import FlexibleArgumentParser
