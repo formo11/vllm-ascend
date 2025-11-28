@@ -99,6 +99,8 @@ class MoECommMethod(ABC):
             w2_scale_bias: torch.Tensor = None,
             w1_offset: Optional[torch.Tensor] = None,
             w2_offset: Optional[torch.Tensor] = None,
+            # For TorchAir graph
+            is_torchair: bool = False,
             # For Cube/Vector parallel
             shared_experts: Optional[Any] = None,
             quantized_x_for_share: Optional[Any] = None,
@@ -130,7 +132,7 @@ class MoECommMethod(ABC):
             dynamic_scale_for_share=dynamic_scale_for_share,
             mc2_mask=mc2_mask,
             apply_router_weight_on_input=apply_router_weight_on_input,
-            with_quant=use_int8_w8a8 or use_int4_w4a8,
+            with_quant=use_int8_w8a8 or use_int4_w4a8 or use_int4_w4a16,
             dynamic_eplb=dynamic_eplb,
             pertoken_scale=pertoken_scale)
 

@@ -128,7 +128,12 @@ class AscendW4A16FusedMoEMethod:
     ) -> Dict[str, Any]:
         assert intermediate_size_per_partition % self.pack_factor == 0, f"Expecting `intermediate_size_per_partition` {intermediate_size_per_partition} can be divided by `pack_factor` {self.pack_factor}"
         assert hidden_sizes % self.pack_factor == 0, f"Expecting `hidden_sizes` {hidden_sizes} can be divided by `pack_factor` {self.pack_factor}"
-
+        assert intermediate_size_per_partition % self.pack_factor == 0, (
+            f"Expecting `intermediate_size_per_partition` {intermediate_size_per_partition} "
+            f"can be divided by `pack_factor` {self.pack_factor}")
+        assert hidden_sizes % self.pack_factor == 0, (
+            f"Expecting `hidden_sizes` {hidden_sizes} can be divided by `pack_factor` "
+            f"{self.pack_factor}")
         param_dict = {}
 
         param_dict["w13_weight_packed"] = torch.empty(
@@ -151,9 +156,12 @@ class AscendW4A16FusedMoEMethod:
         hidden_sizes: int,
         params_dtype: torch.dtype,
     ) -> Dict[str, Any]:
-        assert intermediate_size_per_partition % self.group_size == 0, f"Expecting `intermediate_size_per_partition` {intermediate_size_per_partition} can be divided by `group_size` {self.group_size}"
-        assert hidden_sizes % self.group_size == 0, f"Expecting `hidden_sizes` {hidden_sizes} can be divided by `group_size` {self.group_size}"
-
+        assert intermediate_size_per_partition % self.group_size == 0, (
+            f"Expecting `intermediate_size_per_partition` {intermediate_size_per_partition} "
+            f"can be divided by `group_size` {self.group_size}")
+        assert hidden_sizes % self.group_size == 0, (
+            f"Expecting `hidden_sizes` {hidden_sizes} can be divided by `group_size` "
+            f"{self.group_size}")
         param_dict = {}
 
         param_dict["w13_weight_scale"] = torch.empty(
