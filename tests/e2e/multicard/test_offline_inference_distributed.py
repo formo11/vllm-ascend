@@ -233,7 +233,6 @@ def test_kimi_k2_thinking_w4a16_tp4(model):
             enable_expert_parallel=True,
             tensor_parallel_size=4,
             enable_expert_parallel=True,
-            quantization="ascend",
             compilation_config={
                 "cudagraph_mode": "FULL_DECODE_ONLY",
                 "cudagraph_capture_sizes": [1],
