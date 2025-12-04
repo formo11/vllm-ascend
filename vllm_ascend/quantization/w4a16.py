@@ -126,8 +126,6 @@ class AscendW4A16FusedMoEMethod:
         hidden_sizes: int,
         params_dtype: torch.dtype,
     ) -> Dict[str, Any]:
-        assert intermediate_size_per_partition % self.pack_factor == 0, f"Expecting `intermediate_size_per_partition` {intermediate_size_per_partition} can be divided by `pack_factor` {self.pack_factor}"
-        assert hidden_sizes % self.pack_factor == 0, f"Expecting `hidden_sizes` {hidden_sizes} can be divided by `pack_factor` {self.pack_factor}"
         assert intermediate_size_per_partition % self.pack_factor == 0, (
             f"Expecting `intermediate_size_per_partition` {intermediate_size_per_partition} "
             f"can be divided by `pack_factor` {self.pack_factor}")
