@@ -34,6 +34,7 @@ from vllm_ascend.utils import refresh_block_size
 from vllm_ascend.utils import (
     ASCEND_QUANTIZATION_METHOD, AWQ_QUANTIZATION_METHOD,
     COMPRESSED_TENSORS_METHOD, AscendDeviceType,
+    GPTQ_QUANTIZATION_METHOD,
     enable_sp, get_ascend_device_type, is_vl_model, update_aclgraph_sizes,
     update_cudagraph_capture_sizes, update_default_aclgraph_sizes,
     check_kv_extra_config)
@@ -61,7 +62,7 @@ class NPUPlatform(Platform):
 
     supported_quantization: list[str] = [
         ASCEND_QUANTIZATION_METHOD, COMPRESSED_TENSORS_METHOD,
-        AWQ_QUANTIZATION_METHOD
+        AWQ_QUANTIZATION_METHOD, GPTQ_QUANTIZATION_METHOD
     ]
 
     def is_sleep_mode_available(self) -> bool:
@@ -112,6 +113,8 @@ class NPUPlatform(Platform):
 
         from vllm_ascend.quantization.awq.awq import \
             AWQQuantConfig  # noqa: F401
+        from vllm_ascend.quantization.gptq.gptq import \
+            AscendGPTQQuantConfig  # noqa: F401
         from vllm_ascend.quantization.compressed_tensors.compressed_tensors import \
             AscendCompressedTensorsConfig  # noqa: F401
         from vllm_ascend.quantization.quant_config import \
