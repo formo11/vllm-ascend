@@ -342,7 +342,24 @@ class AscendLinearMethod(LinearMethodBase):
 
         for weight_name, weight_param in weight_dict.items():
             param = torch.nn.Parameter(weight_param, requires_grad=False)
-            set_weight_attrs(param, {"input_dim": 1, "output_dim": 0})
+
+            # vLLM's default weight_loader uses `input_dim` for TP sharding.
+            # Some quantization formats include 1D/0D metadata tensors
+            # (e.g. `weight_g_idx`, `weight_shape`) which must not be treated
+            # as 2D weights.
+            base_weight_attrs: Dict[str, Any] = {}
+            if weight_param.dim() >= 2:
+                base_weight_attrs = {"input_dim": 1, "output_dim": 0}
+            elif weight_param.dim() == 1:
+                if weight_name.endswith("weight_g_idx"):
+                    base_weight_attrs = {"input_dim": 0}
+                else:
+                    base_weight_attrs = {}
+            else:
+                base_weight_attrs = {}
+
+            if base_weight_attrs:
+                set_weight_attrs(param, base_weight_attrs)
 
             # Set packing attributes if the weight is packed
             if packed_dim is not None and packed_factor is not None:

@@ -248,6 +248,15 @@ class NPUWorker(WorkerBase):
         # cache blocks that can be allocated with the remaining free memory.
         NPUPlatform.clear_npu_memory()
 
+        # torch_npu memory_stats() tracks peaks over the lifetime of the
+        # process. Reset peaks here so that the KV cache budget is computed
+        # from the profile run, not from earlier transient allocations
+        # (e.g. weight format conversions during load).
+        if hasattr(torch_npu.npu, "reset_peak_memory_stats"):
+            torch_npu.npu.reset_peak_memory_stats()
+        if hasattr(torch_npu.npu, "reset_accumulated_memory_stats"):
+            torch_npu.npu.reset_accumulated_memory_stats()
+
         # Execute a forward pass with dummy inputs to profile the memory usage
         # of the model.
         _, total_npu_memory = NPUPlatform.mem_get_info()
@@ -265,7 +274,8 @@ class NPUWorker(WorkerBase):
             "not properly cleaned up before initializing the vLLM instance.")
 
         # Get the peak memory allocation recorded by torch
-        peak_memory = torch_npu.npu.memory_stats()["allocated_bytes.all.peak"]
+        memory_stats = torch_npu.npu.memory_stats()
+        peak_memory = memory_stats.get("allocated_bytes.all.peak", 0)
         # TODO: don`t need impl this func after empty_cache in
         # Worker.determine_num_available_blocks() unified`
         NPUPlatform.empty_cache()
@@ -276,10 +286,22 @@ class NPUWorker(WorkerBase):
         non_torch_allocations = total_allocated_bytes - torch_allocated_bytes
         if non_torch_allocations > 0:
             peak_memory += non_torch_allocations
+
+        # Some torch_npu builds report a lifetime peak that is not resettable
+        # or includes earlier transient allocations. Prefer an estimate based
+        # on current total allocated bytes when it's larger / more reasonable.
+        baseline_allocated = max(int(peak_memory), int(total_allocated_bytes))
+
         available_kv_cache_memory = int(
             total_npu_memory * self.cache_config.gpu_memory_utilization -
-            peak_memory)
+            baseline_allocated)
         available_kv_cache_memory = int(max(available_kv_cache_memory, 0))
+        logger.info(
+            "NPU memory profile: total=%s free_after_profile=%s init_free=%s "
+            "torch_peak=%s torch_current=%s total_alloc=%s util=%s", 
+            total_npu_memory, free_npu_memory, self.init_npu_memory,
+            peak_memory, torch_allocated_bytes, total_allocated_bytes,
+            self.cache_config.gpu_memory_utilization)
         logger.info(
             f"Available memory: {available_kv_cache_memory}, total memory: {total_npu_memory}"
         )

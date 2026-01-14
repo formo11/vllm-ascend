@@ -21,7 +21,8 @@ from vllm_ascend.ops.fused_moe.fused_moe import AscendUnquantizedFusedMoEMethod
 from vllm_ascend.quantization.quant_config import (AscendFusedMoEMethod,
                                                    AscendLinearMethod,
                                                    AscendQuantConfig)
-from vllm_ascend.quantization.w4a16 import AscendW4A16FusedMoEMethod
+from vllm_ascend.quantization.w4a16 import (AscendW4A16FusedMoEMethod,
+                                           AscendW4A16LinearMethod)
 from vllm_ascend.quantization.w8a8 import AscendW8A8LinearMethod
 from vllm_ascend.quantization.w8a8_dynamic import AscendW8A8DynamicLinearMethod
 from vllm_ascend.utils import COMPRESSED_TENSORS_METHOD
@@ -218,13 +219,14 @@ class AscendCompressedTensorsConfig(QuantizationConfig):
         else:
             # Find the quant_scheme
             scheme = self._get_scheme_from_parts(
+                layer=layer,
                 weight_quant=weight_quant,
                 input_quant=input_quant,
             )
         return scheme
 
     def _get_scheme_from_parts(
-            self, weight_quant: QuantizationArgs,
+            self, layer: torch.nn.Module, weight_quant: QuantizationArgs,
             input_quant: QuantizationArgs) -> "CompressedTensorsScheme":
         act_quant_format = is_activation_quantization_format(self.quant_format)
         if act_quant_format and input_quant is not None:
@@ -236,7 +238,10 @@ class AscendCompressedTensorsConfig(QuantizationConfig):
 
         if weight_quant is not None:
             if self._is_w4a16(weight_quant):
-                return AscendW4A16FusedMoEMethod()
+                if isinstance(layer, FusedMoE):
+                    return AscendW4A16FusedMoEMethod()
+                group_size = getattr(weight_quant, "group_size", 128) or 128
+                return AscendW4A16LinearMethod(group_size=group_size)
 
         raise NotImplementedError(
             "No compressed-tensors compatible scheme was found.")

@@ -58,6 +58,7 @@ _WEIGHT_PREFETCH_METHOD = None
 _GLOBAL_STREAM = None
 _SHARED_EXPERTS_CALCULATION_STREAM = None
 _ASCEND_CUSTOMOP_IS_REIGISTERED = False
+_WARNED_WEAK_REF_TENSOR_FALLBACK = False
 _DEFAULT_BUFFER_SIZE = 200
 _MIN_DP_BUFFER_SIZE = 50
 _IS_MOE_MODEL = None
@@ -719,8 +720,40 @@ _ascend_device_type = None
 
 def _init_ascend_device_type():
     global _ascend_device_type
-    from vllm_ascend import _build_info  # type: ignore
-    _ascend_device_type = AscendDeviceType[_build_info.__device_type__]
+    try:
+        # NOTE: `_build_info` is generated during packaging/wheel build.
+        # When users bind-mount a source tree into the container for quick
+        # iteration, this module may not exist. In that case we fall back to
+        # runtime detection.
+        from vllm_ascend import _build_info  # type: ignore
+
+        _ascend_device_type = AscendDeviceType[_build_info.__device_type__]
+        return
+    except Exception as e:
+        logger.warning_once(
+            "Failed to import vllm_ascend._build_info (%s). "
+            "Falling back to runtime SoC detection. "
+            "This is expected when bind-mounting source code.", e)
+
+    try:
+        soc_version = torch_npu.npu.get_soc_version()
+        if 220 <= soc_version <= 225:
+            _ascend_device_type = AscendDeviceType.A2
+        elif 250 <= soc_version <= 255:
+            _ascend_device_type = AscendDeviceType.A3
+        elif 200 <= soc_version <= 205:
+            _ascend_device_type = AscendDeviceType._310P
+        elif soc_version == 260:
+            _ascend_device_type = AscendDeviceType.A5
+        else:
+            raise RuntimeError(f"Unknown soc_version: {soc_version}.")
+    except Exception as e:
+        # Conservative default: treat as non-310P to avoid applying 310P-only
+        # patches incorrectly. This keeps dev workflows unblocked.
+        logger.warning_once(
+            "Runtime SoC detection failed (%s). Defaulting to AscendDeviceType.A3.",
+            e)
+        _ascend_device_type = AscendDeviceType.A3
 
 
 def check_ascend_device_type():
@@ -863,9 +896,22 @@ def weak_ref_tensor(tensor: Any) -> Any:
     The new tensor will share the same data as the original tensor,
     but will not keep the original tensor alive.
     """
-    if isinstance(tensor, torch.Tensor):
+    if not isinstance(tensor, torch.Tensor):
+        return tensor
+
+    # `torch.ops._C_ascend.weak_ref_tensor` is provided by the compiled
+    # vLLM-Ascend custom extension. When bind-mounting source code without
+    # the extension built, the op may be missing.
+    try:
         return torch.ops._C_ascend.weak_ref_tensor(tensor)
-    else:
+    except AttributeError:
+        global _WARNED_WEAK_REF_TENSOR_FALLBACK
+        if not _WARNED_WEAK_REF_TENSOR_FALLBACK:
+            logger.warning(
+                "Missing torch.ops._C_ascend.weak_ref_tensor; falling back to strong tensor references. "
+                "This may increase memory usage during ACL graph capture."
+            )
+            _WARNED_WEAK_REF_TENSOR_FALLBACK = True
         return tensor
 
 

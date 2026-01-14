@@ -3016,12 +3016,20 @@ class NPUModelRunner(GPUModelRunner):
                         logger.error(
                             f"ACLgraph sizes capture fail: {type(e).__name__}:\n"
                             "ACLgraph has insufficient available streams to capture the configured number of sizes. "
-                            "Please verify both the availability of adequate streams and the appropriateness of the configured size count.\n\n"
+                            "This is typically caused by stream/memory resource exhaustion during capture.\n\n"
                             "Recommended solutions:\n"
-                            "1. Manually configure the compilation_config parameter "
-                            "with a reduced set of sizes: '{\"cudagraph_capture_sizes\":[size1, size2, size3, ...]}'.\n"
-                            "2. Utilize ACLgraph's full graph mode as an alternative to the piece-wise approach.\n\n"
+                            "1. Reduce capture sizes via compilation_config, e.g. '{\"cudagraph_capture_sizes\":[1,2,4,8,16,32,64]}'.\n"
+                            "2. Switch to FULL graph mode (if supported by your workload).\n"
+                            "3. Set HCCL_OP_EXPANSION_MODE=AIV to improve comms and increase supported shapes.\n\n"
                             f"{str(e)}")
+
+                        # Fallback: skip ACL graph capture so the engine can still start.
+                        logger.warning(
+                            "Falling back to no ACL graph capture due to insufficient resources. "
+                            "Performance may be reduced; consider configuring fewer capture sizes.")
+                        set_cudagraph_capturing_enabled(False)
+                        self.use_aclgraph = False
+                        return
                     raise
 
             if aclgraph_mode.decode_mode() == CUDAGraphMode.FULL and \
